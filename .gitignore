@@ -1,0 +1,10 @@
+*.glob
+*.v.d
+*.vo
+\#*\#
+*.cmi
+*.cmx
+*.cmxs
+*.o
+*.aux
+
