@@ -63,7 +63,6 @@ Inductive typ : Set :=
 with formula : Set :=
   | formula_or : formula -> formula -> formula
   | formula_and : formula -> formula -> formula
-  | formula_implies : formula -> formula -> formula
   | formula_not : formula -> formula
   | formula_true : formula
   | formula_eq : logical_value -> logical_value -> formula
@@ -105,8 +104,8 @@ Notation " v1 = v2 " := (formula_eq v1 v2) : logical_scope.
 Notation " v1 /\ v2 " := (formula_and v1 v2) : logical_scope.
 Notation " v1 \/ v2 " := (formula_or v1 v2) : logical_scope.
 Notation "~ v" := (formula_not v) : logical_scope.
-Notation " v1 ==> v2 " := (formula_implies v1 v2)
-                            (at level 90, right associativity): logical_scope.
+(* Notation " v1 ==> v2 " := (formula_implies v1 v2) *)
+(*                             (at level 90, right associativity): logical_scope. *)
 
 (* Notation for types *)
 Bind Scope typ_scope with typ.
@@ -173,7 +172,6 @@ with open_formula_rec (k : nat) (u : logical_value) (p : formula) : formula :=
   match p with
   | p1 \/ p2 => ({k ~> u} p1) \/ ({k ~> u} p2)
   | p1 /\ p2 => ({k ~> u} p1) /\ ({k ~> u} p2)
-  | p1 ==> p2 => ({k ~> u} p1) ==> ({k ~> u} p2)
   | ~p' => ~({k ~> u} p')
   | formula_true => formula_true
   | v1 = v2 => ({k ~> u} v1) = ({k ~> u} v2)
@@ -290,11 +288,6 @@ with closed_formula : formula -> Prop :=
       closed_formula p1 ->
       closed_formula p2 ->
       closed_formula (p1 /\ p2)
-
-  | closed_formula_implies : forall p1 p2,
-      closed_formula p1 ->
-      closed_formula p2 ->
-      closed_formula (p1 ==> p2)
 
   | closed_formula_not : forall p,
       closed_formula p ->
@@ -443,7 +436,6 @@ with formula_fv (p : formula) : vars :=
   match p with
   | p1 \/ p2 => formula_fv p1 \u formula_fv p2
   | p1 /\ p2 => formula_fv p1 \u formula_fv p2
-  | p1 ==> p2 => formula_fv p1 \u formula_fv p2
   | ~p' => formula_fv p'
   | formula_true => \{}
   | v1 = v2 => (logical_value_fv v1) \u (logical_value_fv v2)
@@ -498,7 +490,6 @@ with formula_subst (x : var) (v : logical_value) (p : formula) : formula :=
   match p with
   | p1 \/ p2 => ([x ~> v] p1) \/ ([x ~> v] p2)
   | p1 /\ p2 => ([x ~> v] p1) /\ ([x ~> v] p2)
-  | p1 ==> p2 => ([x ~> v] p1) ==> ([x ~> v] p2)
   | ~p' => ~([x ~> v] p')
   | formula_true => formula_true
   | v1 = v2 => ([x ~> v] v1 = [x ~> v] v2)%logic_val
@@ -557,13 +548,13 @@ Notation "E |~ T" := (type_wf E T) (at level 69, T at level 0).
 (*   | E'« p => Embed E' /\ p *)
 (*   end%logic. *)
 
-(* Fixpoint extract (E : env) : fset formula := *)
-(*   match E with *)
-(*   | empty_env => \{} *)
-(*   | E'« x:{v: B | p} => extract E' \u \{(p ^ x)} *)
-(*   | E'« x:_ => extract E' *)
-(*   | E'« p => extract E' \u \{p} *)
-(*   end%logic. *)
+Fixpoint extract (E : env) : fset formula :=
+  match E with
+  | empty_env => \{}
+  | E'« x:{v: B | p} => extract E' \u \{(p ^ x)}
+  | E'« x:_ => extract E'
+  | E'« p => extract E' \u \{p}
+  end%logic.
 
 (** The definition of subtyping appeals to the notion of logical consequence or entailment in
     the logic. We assume a judgment [entails E p] which means that the environment [E]
@@ -576,9 +567,10 @@ Notation "E |~ T" := (type_wf E T) (at level 69, T at level 0).
     state the axioms required for the logic in a clean way. We define the notion of validity
     using entailment. *)
     
-Parameter entails : forall (E : env) (p : formula), Prop.
+Parameter entails : forall (E : fset formula) (p : formula), Prop.
 Notation "E |= p" := (entails E p) (at level 69, p at level 0).
-Definition valid p := empty_env |= p.
+Notation "E ||= p" := (entails (extract E) p) (at level 69, p at level 0).
+Definition valid p := \{} |= p.
 
 (** The arrow case of the subtyping relation is the typical syntactic one. The refinement
     case is more interesting and crucial for the expressiveness of the system. Intuitively
@@ -591,7 +583,7 @@ Inductive subtype : env -> typ -> typ -> Prop :=
       E |~ {v: B | p} ->
       E |~ {v: B | q} ->
       (forall x, x \notin L ->
-        E « (p^x) |= (q ^ x))%logic ->
+        extract E \u \{p^x} |= (q ^ x))%logic ->
       E |~ {v : B | p} <: {v : B | q}
 
   | subtype_arrow : forall L E T11 T12 T21 T22,
@@ -681,16 +673,9 @@ Hint Constructors typing.
     statements are defined so they match the statements of the properties about subtyping. *)
 
 Axiom valid_eq : forall {v}, valid (v = v).
-Axiom entails_assumption : forall E p, E « p |= p.
-Axiom entails_weaken : forall {E G p} F, E & G |= p -> E & F & G |= p.
-Axiom entails_strengthen : forall {E F} p q, E |= p -> E « p & F |= q -> E & F |= q.
-Axiom entails_narrowing : forall E F x S1 S2 p,
-    E |~ S1 <: S2 -> E « x : S2 & F |= p -> E « x : S1 & F |= p.
-Axiom entails_subst : forall {E F x p} S s,
-    value s ->
-    E |~ s : S ->
-    (E « x : S & F) |= p ->
-    ([x ~> !s] (E & F)) |= ([x ~> !s] p).
+Axiom entails_assumption : forall E p, E \u \{p} |= p.
+Axiom entails_monotone : forall {E p} F, E |= p -> E \u F |= p.
+Axiom entails_cut : forall {E} p q, E |= p -> E \u \{p} |= q -> E |= q.
 
 (* ********************************************************************** *)
 (** * Semantics *)

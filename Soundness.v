@@ -1,5 +1,6 @@
 Require Import TLC.LibLN Definitions Infrastructure.
 
+
 Ltac get_env H :=
   match H with
   | ?E |= _ => constr:(E)
@@ -10,6 +11,68 @@ Ltac get_env H :=
   end.
 
 (** * Narrowing *)
+Lemma entails_trans : forall {E p1 p3} p2, E \u \{p1} |= p2 -> E \u \{p2} |= p3 -> E \u \{p1} |= p3.
+Proof.
+  introv Ent1 Ent2.
+  apply (entails_monotone \{p1}) in Ent2.
+  rewrite <- union_assoc in Ent2. rewrite (union_comm \{p2}) in Ent2.
+  rewrite union_assoc in Ent2. apply entails_cut in Ent2; assumption.
+Qed.
+
+Lemma extract_concat : forall {E F}, extract (E & F) = extract E \u extract F.
+Proof.
+  induction F.
+  * cbn. rewrite union_empty_r. reflexivity.
+  * destruct t; cbn; rewrite IHF.
+    + rewrite union_assoc. reflexivity.
+    + reflexivity.
+  * cbn. rewrite IHF. rewrite union_assoc. reflexivity.
+Qed.
+Axiom entails_subst : forall {E p} x y q,
+    |~ E ->
+    y \notin dom E ->
+    y \notin formula_fv q ->
+    y \notin formula_fv p ->
+    extract E \u \{p ^ x}%logic |= q ->
+    extract ([x ~> logical_fvar y] E) \u \{p ^ y}%logic |= [x~>logical_fvar y] q.
+
+Axiom entails_subst' : forall {E x v p},
+    extract E \u \{logical_fvar x = v}%logic |= p ->
+    extract [x ~> v] E |= [x ~> v] p.
+
+Lemma entails_narrowing : forall E F x S1 S2 p,
+    |~ (E « x : S1 & F) ->
+    |~ (E « x : S2 & F) ->
+    E |~ S1 <: S2 ->
+    E « x : S2 & F ||= p ->
+    E « x : S1 & F ||= p.
+Proof.
+  introv Wf1 Wf2 Sub Ent.
+  inversion Sub; subst.
+  * (* Rewriting Ent *)
+    rewrite extract_concat in Ent. cbn in Ent. rewrite union_comm in Ent. rewrite union_assoc in Ent.
+    (* Rewriting Goal *)
+    rewrite extract_concat. cbn. rewrite union_comm. rewrite union_assoc.
+    (* Rewriting H1 *)
+    pick_fresh y. forwards* : (H1 y). apply (entails_subst y x) in H2; auto.
+    + rewrite subst_env_notin_dom in H2; auto.
+      unfold open_formula in H2. rewrite subst_open_rec_formula in H2; auto.
+      rewrite subst_fresh_formula in H2; auto. cbn in H2. case_var.
+      apply (entails_monotone (extract F)) in H2. rewrite union_comm in H2. rewrite union_assoc in H2.
+      apply (entails_trans (q ^ x)%logic); assumption.
+    + apply wf_env_concat_inv in Wf1. inversion Wf1; assumption.
+    + apply wf_env_concat_inv in Wf2. inversion Wf2; subst. cbn in H8. unfolds subset.
+      assert (forall p x y, x <> y -> x \notin formula_fv p -> x \notin formula_fv (p ^ y)%logic). admit.
+      apply H3; auto. intros_all. apply H8 in H4. apply H7 in H4. assumption.
+    + apply wf_env_concat_inv in Wf1. inversion Wf1; subst. intros_all. auto.
+ * rewrite extract_concat. rewrite extract_concat in Ent. cbn in *. assumption.
+Qed.
+
+Axiom entails_subst : forall {E F x p} S s,
+    value s ->
+    E |~ s : S ->
+    (E « x : S & F) |= p ->
+    ([x ~> !s] (E & F)) |= ([x ~> !s] p).
 
 Lemma wf_env_narrowing : forall E F x S1 S2,
     E |~ S1 <: S2 ->
@@ -59,16 +122,6 @@ Proof.
         - apply* open_var_rec_in_typ_fv. simpl. apply* subset_union_r.
 Qed.
 
-Lemma entails_trans : forall E p1 p2 p3, E « p1 |= p2 -> E « p2 |= p3 -> E « p1 |= p3.
-Proof.
-  introv Ent1 Ent2.
-  rewrite (empty_env_concat_r E) in Ent2.
-  assert ((E & empty_env) « p2 = E & (empty_env « p2)); auto.
-  rewrite H in Ent2.
-  forwards : (entails_weaken (empty_env « p1) Ent2).
-  let F := get_env type of H0 in rewrite (empty_env_concat_r F) in H0.
-  eapply entails_strengthen in H0; auto.
-Qed.
 
 Lemma sub_trans : forall E T1 T2 T3, E |~ T1 <: T2 -> E |~ T2 <: T3 -> E |~ T1 <: T3.
 Proof.

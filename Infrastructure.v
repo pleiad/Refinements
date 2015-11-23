@@ -22,7 +22,6 @@ Theorem typ_combined
        (forall T, P T -> forall S, P S -> P (T) --> S%typ) ->
        (forall p, P0 p -> forall q, P0 q -> P0 (p \/ q)%logic) ->
        (forall p, P0 p -> forall q, P0 q -> P0 (p /\ q)%logic) ->
-       (forall p, P0 p -> forall q, P0 q -> P0 (p ==> q)%logic) ->
        (forall p, P0 p -> P0 (~ p)%logic) ->
        P0 formula_true ->
        (forall v, P1 v -> forall u, P1 u -> P0 (v = u)%logic) ->
@@ -60,9 +59,6 @@ Theorem type_combined
        (forall p1 p2,
         closed_formula p1 ->
         P0 p1 -> closed_formula p2 -> P0 p2 -> P0 (p1 /\ p2)%logic) ->
-       (forall p1 p2,
-        closed_formula p1 ->
-        P0 p1 -> closed_formula p2 -> P0 p2 -> P0 (p1 ==> p2)%logic) ->
        (forall p, closed_formula p -> P0 p -> P0 (~ p)%logic) ->
        P0 formula_true ->
        (forall v1 v2,
@@ -737,9 +733,7 @@ Qed.
 
 Lemma entails_valid : forall E p, valid p -> E |= p.
 Proof.
-   intros. rewrite empty_env_concat_r with E.
-   rewrite empty_env_concat_l with E. apply entails_weaken.
-   simpl. apply H.
+   introv Valid. apply (entails_monotone E) in Valid. rewrite union_empty_l in Valid. assumption.
 Qed.
 
 (** * Typing Judgment *)
