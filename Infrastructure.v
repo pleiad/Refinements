@@ -119,7 +119,6 @@ Tactic Notation "apply_fresh" "*" constr(T) "as" ident(x) :=
 Tactic Notation "apply_fresh" "*" constr(T) :=
   apply_fresh T; autos*.
 
-
 (** * Automation *)
 
 (** ** Solve in *)
@@ -517,6 +516,16 @@ Proof.
   simpl in H. inversion H. simpl in H.  inversion H.
 Qed.
 
+Lemma extract_concat : forall {E F}, extract (E & F) = extract E \u extract F.
+Proof.
+  induction F.
+  * cbn. rewrite union_empty_r. reflexivity.
+  * destruct t; cbn; rewrite IHF.
+    + rewrite union_assoc. reflexivity.
+    + reflexivity.
+  * cbn. rewrite IHF. rewrite union_assoc. reflexivity.
+Qed.
+
 
 Lemma dom_middle_formula : forall E p F, dom (E « p & F) = dom (E & F).
 Proof. induction F; intros; simpl; auto. rewrite* IHF. Qed.
@@ -548,9 +557,9 @@ Lemma subst_env_notin_dom : forall E x u,
 Proof.
   introv Wf Nin. induction E; simpl; auto.
   * rewrite IHE; simpls; auto. inversion Wf. rewrite notin_union in Nin.
-    rewrite* subst_fresh_typ. intros_all. forwards* : (H4 x H5). inversion* Wf.
+    rewrite* subst_fresh_typ. intros_all. forwards* : (H4 x H6). inversion* Wf.
   * rewrite IHE; simpls; auto. inversion Wf. 
-    rewrite* subst_fresh_formula. intros_all. forwards* : (H2 x H3). inversion* Wf.
+    rewrite* subst_fresh_formula. intros_all. forwards* : (H2 x H4). inversion* Wf.
 Qed.
 
 Hint Extern 1 (_ \notin dom _) => repeat (rewrite dom_concat in *).
@@ -559,6 +568,60 @@ Hint Extern 1 (?x \in dom ?E) =>
 match goal with
 | H: binds x ?T E |- _ => apply binds_in_dom in H
 end.
+
+(** * Properties of substitution of sets *)
+
+(* Substitution is well defined *)
+Lemma subst_set_unique : forall x v E F G, subst_set x v E F -> subst_set x v E G -> F = G.
+Proof.
+  introv Subst1 Subst2. unfolds subst_set. apply fset_extens.
+  * intros_all. destruct Subst1 as [_ Subst1]. apply Subst1 in H. destruct H as [p [In Eq]].
+    destruct Subst2 as [Subst2 _]. apply Subst2 in In. subst. assumption.
+  * intros_all. destruct Subst2 as [_ Subst2]. apply Subst2 in H. destruct H as [p [In Eq]].
+    destruct Subst1 as [Subst1 _]. apply Subst1 in In. subst. assumption.
+Qed.
+
+Lemma subst_set_singleton : forall x v p, subst_set x v \{p} \{[x~>v]p}%logic.
+Proof. unfold subst_set. intros. split.
+   * introv In. repeat rewrite in_singleton in *. subst. reflexivity.
+   * introv In. rewrite in_singleton in *. exists p. subst. split.
+     + rewrite in_singleton. reflexivity.
+     + reflexivity.
+Qed.
+
+Lemma subst_set_empty : forall x v, subst_set x v \{} \{}.
+Proof.
+  unfold subst_set. intros. split; introv In; rewrite in_empty in In; exfalso; assumption.
+Qed.
+
+Lemma subst_set_union : forall x v E F G H,
+    subst_set x v E G ->
+    subst_set x v F H ->
+    subst_set x v (E \u F) (G \u H).
+Proof.
+  introv Subst1 Subst2.
+  unfold subst_set. split.
+  * introv In. destruct Subst1 as [Subst1 _]. destruct Subst2 as [Subst2 _]. auto.
+  * introv In. rewrite in_union in In. destruct In as [In | In].
+    + destruct Subst1 as [_ Subst1]. apply Subst1 in In as [p [In Eq]].
+      exists p. split; auto.
+    + destruct Subst2 as [_ Subst2]. apply Subst2 in In as [p [In Eq]].
+      exists p. split; auto.
+Qed.
+
+Lemma subst_set_extract : forall E x v,
+    closed_logical_value v ->
+    x \notin dom E ->
+    subst_set x v (extract E) (extract [x ~> v] E).
+Proof.
+  introv Closed Notin. induction E.
+  * cbn. apply subst_set_empty.
+  * cbn in Notin. destruct t; cbn; auto. apply subst_set_union; auto.
+    assert (([x ~> v] f ^ v0)%logic = ([x~>v] (f ^ v0))%logic).
+    unfold open_formula; rewrite subst_open_rec_formula; auto; cbn; case_var; reflexivity.
+    rewrite H. apply subst_set_singleton.
+  * cbn. apply subst_set_union; auto. apply subst_set_singleton.
+Qed.
 
 (** * Properties of binds *)
 
@@ -616,6 +679,11 @@ Proof.
   intros. induction F; auto.
   do_rew <- binding_env_concat (apply binds_push_neq); simpl in H0; auto.
 Qed.
+
+Lemma binds_middle : forall E x T F,
+    x \notin dom F ->
+    binds x T (E « x : T & F).
+Proof. introv Notin. apply binds_concat_left. apply binds_tail. assumption. Qed.
 
 Lemma binds_fresh_inv : forall x T E,
   binds x T E -> x \notin dom E -> False.
@@ -736,6 +804,17 @@ Proof.
    introv Valid. apply (entails_monotone E) in Valid. rewrite union_empty_l in Valid. assumption.
 Qed.
 
+Lemma entails_trans : forall {E p1 p3} p2, E \u \{p1} |= p2 -> E \u \{p2} |= p3 -> E \u \{p1} |= p3.
+Proof.
+  introv Ent1 Ent2.
+  apply (entails_monotone \{p1}) in Ent2.
+  rewrite <- union_assoc in Ent2. rewrite (union_comm \{p2}) in Ent2.
+  rewrite union_assoc in Ent2. apply entails_cut in Ent2; assumption.
+Qed.
+
+Lemma entails_eq : forall {E v}, E |= (v = v).  
+Proof. intros. rewrite <- (union_empty_l E). apply (entails_monotone E). apply valid_eq. Qed.
+ 
 (** * Typing Judgment *)
 
 Lemma typing_var_inv : forall E x T,
@@ -883,6 +962,7 @@ Hint Extern 1 (term ?t) =>
 
 Hint Extern 1 (type ?T) =>
   match goal with
+  | H: (_ |~ _ : T) |- _ => apply (typing_regular H)
   | H: (_ |~ T <: _) |- _=> apply (sub_regular H)
   | H: (_ |~ _ <: T) |- _ => apply (sub_regular H)
   | H: (_ |~ T) |- _ => destruct H as [? _]

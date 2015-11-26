@@ -1,77 +1,5 @@
 Require Import TLC.LibLN Definitions Infrastructure.
 
-(** Refinement Soundess Result *)
-Lemma entails_trans : forall {E p1 p3} p2, E \u \{p1} |= p2 -> E \u \{p2} |= p3 -> E \u \{p1} |= p3.
-Proof.
-  introv Ent1 Ent2.
-  apply (entails_monotone \{p1}) in Ent2.
-  rewrite <- union_assoc in Ent2. rewrite (union_comm \{p2}) in Ent2.
-  rewrite union_assoc in Ent2. apply entails_cut in Ent2; assumption.
-Qed.
-
-Lemma entails_eq : forall {E v}, E |= (v = v).  
-Proof. intros. rewrite <- (union_empty_l E). apply (entails_monotone E). apply valid_eq. Qed.
-
-Lemma extract_concat : forall {E F}, extract (E & F) = extract E \u extract F.
-Proof.
-  induction F.
-  * cbn. rewrite union_empty_r. reflexivity.
-  * destruct t; cbn; rewrite IHF.
-    + rewrite union_assoc. reflexivity.
-    + reflexivity.
-  * cbn. rewrite IHF. rewrite union_assoc. reflexivity.
-Qed.
-
-Lemma extract_formula : forall p, \{p} = extract (empty_env « p).
-Proof. intro. cbn. rewrite union_empty_l. reflexivity. Qed.
-
-Require Import List.
-Fixpoint subst_list x v l :=
-  match l with
-  | nil => nil
-  | T :: tl => ([x ~> v] T)%logic :: subst_list x v tl
-  end.
-
-Definition subst_set (x : var) (v : logical_value) (E : fset formula) (F: fset formula) : 
-  Prop := forall p, p \in E -> ([x ~> v] p)%logic \in F.
-
-Lemma subst_set_singleton : forall x v p, subst_set x v \{p} \{[x~>v]p}%logic.
-Proof. unfold subst_set. introv. repeat rewrite in_singleton. intro. subst. reflexivity. Qed.
-
-Lemma subst_set_empty : forall x v, subst_set x v \{} \{}.
-Proof. unfold subst_set. introv In. rewrite in_empty in In. exfalso. assumption. Qed.
-
-Lemma subst_set_union : forall x v E F G H,
-    subst_set x v E G ->
-    subst_set x v F H ->
-    subst_set x v (E \u F) (G \u H).
-Proof. unfold subst_set. introv Subst1 Subst2. introv In. auto. Qed. 
-
-Axiom entails_subst : forall {E q} x v F,
-    E |= q ->
-    subst_set x v E F ->
-    F |= [x ~> v] q.
-
-Lemma formula_fv_open : forall x y p, x \notin formula_fv p -> x <> y -> x \notin formula_fv (p ^ y)%logic.
-Proof.
-  intros. induction p; cbn in *; auto.
-  destruct l; destruct l0; cbn; try case_nat; try case_nat; cbn in *; auto. 
-Qed.
-
-Lemma subst_set_extract : forall E x v,
-    closed_logical_value v ->
-    x \notin dom E ->
-    subst_set x v (extract E) (extract [x ~> v] E).
-Proof.
-  introv
-    Closed Notin. induction E.
-  * cbn. apply subst_set_empty.
-  * cbn in Notin. destruct t; cbn; auto. apply subst_set_union; auto.
-    assert (([x ~> v] f ^ v0)%logic = ([x~>v] (f ^ v0))%logic).
-    unfold open_formula; rewrite subst_open_rec_formula; auto; cbn; case_var; reflexivity.
-    rewrite H. apply subst_set_singleton.
-  * cbn. apply subst_set_union; auto. apply subst_set_singleton.
-Qed.
 
 Lemma entails_subst2 : forall {E p q} x v,
     |~ E ->
@@ -90,10 +18,7 @@ Proof.
     + rewrite (subst_intro_formula x p v); auto. apply subst_set_singleton.
 Qed.
 
-
-(* Lemma refinement_soundness_result : refinement_soundness. *)
-Lemma refinement_soundness_result : forall t B p E,
-value t -> E |~ t : { v : B | p} -> E ||= (p ^^ (! t)).
+Lemma refinement_soundness_result : refinement_soundness.
 Proof.
   introv Val Typ. inductions Typ; try solve[inversion Val | cbn; case_nat; apply entails_eq].
   inversion H; subst. forwards* : (IHTyp B p0 Val). pick_fresh y. forwards* : (H6 y).
@@ -141,16 +66,16 @@ Proof.
   * inversion H0. constructor*. rewrite dom_concat in *; auto.
 Qed.
 
-Lemma entails_typing_subst : forall {E F x p} S s,
+Lemma entails_typing_subst : forall {E F p x} s S,
     value s ->
     E |~ s : S ->
-    |~ (E « x : S & F) ->
+    x \notin dom F ->
+    |~ (E « x : S) ->
     (E « x : S & F) ||= p ->
     ([x ~> !s] (E & F)) ||= ([x ~> !s] p).
 Proof.
-  introv Val Typ Wf Ent.
-  lets Wf2 : Wf. apply wf_env_concat_inv in Wf. inversion Wf.
-  destruct S; subst.
+  introv Val Typ Notin Wf Ent.
+  lets Wf2 : Wf. inversion Wf. destruct S; subst.
   * apply refinement_soundness_result in Typ; auto.
     apply (entails_subst x (!s) (extract [x ~> !s] E \u \{f^^!s}%logic \u extract [x ~> !s] F)) in Ent.
     + rewrite (union_comm _ (extract [x ~> !s] F)) in Ent. rewrite union_assoc in Ent.
@@ -161,12 +86,12 @@ Proof.
       - apply subst_set_union. apply subst_set_extract; auto.
         rewrite (subst_intro_formula x f (!s)); auto. apply subst_set_singleton.
         cbn in H4. intros_all. auto.
-      - apply subst_set_extract; auto. apply wf_env_middle_inv in Wf2. apply Wf2.
+      - apply subst_set_extract; auto. 
  * rewrite extract_concat in Ent. cbn in Ent.
    apply (entails_subst x (!s) (extract [x ~> !s] E \u extract [x ~> !s] F)) in Ent.
    + rewrite subst_env_concat. rewrite extract_concat. auto.
-   + apply wf_env_middle_inv in Wf2. apply subst_set_union. apply subst_set_extract; auto.
-     apply subst_set_extract. auto. apply Wf2.
+   + apply subst_set_union. apply subst_set_extract; auto.
+     apply subst_set_extract; auto. 
 Qed.
 
 Lemma wf_type_narrowing : forall E F x S1 S2 T,
@@ -185,10 +110,7 @@ Lemma sub_narrowing : forall E F x S1 S2 T1 T2,
 Proof.
   intros. inductions H0.
   * apply_fresh* subtype_refinement. apply* wf_type_narrowing. apply* wf_type_narrowing.
-    rewrite extract_formula. rewrite <- extract_concat. rewrite env_concat_assoc.
-    apply (entails_narrowing S2); auto.
-    rewrite extract_concat in H1. rewrite extract_concat.
-    destruct S2; cbn in *; rewrite union_assoc; apply* H1.
+    do_rew* formula_env_concat (apply (entails_narrowing S2)).
   * apply_fresh* subtype_arrow. forwards* : (H1 y). rewrite* binding_env_concat. assumption. 
 Qed.
 
@@ -213,8 +135,8 @@ Lemma sub_trans : forall E T1 T2 T3, E |~ T1 <: T2 -> E |~ T2 <: T3 -> E |~ T1 <
 Proof.
   introv Sub1 Sub2. assert (type T2); auto. gen E T1 T3 Sub1 Sub2.
   induction H; introv Sub1 Sub2.
-  * inversion Sub1. subst. inversion Sub2. subst. apply_fresh* subtype_refinement.
-    eapply entails_trans; auto.
+  * inversion Sub1; subst. inversion Sub2; subst. apply_fresh* subtype_refinement.
+    cbn in *. eapply entails_trans; auto.
   * inversion Sub1. subst. inversion Sub2. subst. apply_fresh subtype_arrow; auto.
     eapply H1; auto. rewrite empty_env_concat_r at 1. eapply sub_narrowing; eauto.
 Qed.
@@ -251,7 +173,7 @@ Proof.
   introv sub wf. inductions sub. 
   * apply_fresh* subtype_refinement; intros.
       apply* wf_type_weaken. apply* wf_type_weaken.
-      repeat rewrite extract_concat. rewrite (union_comm (extract E) (extract F)).
+      cbn in *. repeat rewrite extract_concat. rewrite (union_comm (extract E) (extract F)).
       do 2 rewrite <- union_assoc. rewrite (union_comm (extract F)).
       apply entails_monotone. rewrite extract_concat in H1. rewrite union_assoc. apply* H1.
   * apply_fresh* subtype_arrow. do_rew binding_env_concat (apply H0); auto.
@@ -280,7 +202,7 @@ Proof.
       apply typing_var_inv in Typ1. destruct Typ1. apply binds_in_dom in H0.
       apply* singleton_subset.
   * apply_fresh* typing_let.
-    + do_rew binding_env_concat (apply H0); auto. constructor*.
+    + do_rew binding_env_concat (apply H0); auto. constructor; auto.
       apply typing_regular in Typ. destructs Typ. destructs* H4.
     + apply* wf_type_weaken.
   * eapply typing_sub; eauto. apply* sub_weaken.
@@ -343,7 +265,7 @@ Proof.
   * apply_fresh* subtype_refinement; intros.
     apply (entails_cut p).
     + apply entails_monotone. rewrite extract_concat. apply entails_monotone. assumption.
-    + rewrite extract_concat in H1. cbn in H1. rewrite (union_comm (extract E) \{p}) in H1.
+    + cbn in *. rewrite extract_concat in H1. cbn in H1. rewrite (union_comm (extract E) \{p}) in H1.
       forwards* : (H1 y).
       rewrite <- (union_assoc (\{p} \u extract E)) in H2. rewrite <- union_assoc in H2.
       rewrite (union_comm \{p}) in H2. rewrite extract_concat. rewrite union_assoc in H2.
@@ -430,11 +352,12 @@ Proof.
 Qed.
 
 Lemma wf_env_subst : forall {E x F} T u,
+    closed_logical_value u ->
     |~ (E « x : T & F) ->
     logical_value_fv u \c dom E ->
     |~ [x ~> u] (E & F).
 Proof.
-  introv Wf Fv. rewrite subst_env_concat. lets M : (wf_env_concat_inv Wf). inversion M.
+  introv Closed Wf Fv. rewrite subst_env_concat. lets M : (wf_env_concat_inv Wf). inversion M.
   rewrite subst_env_notin_dom at 1; auto.
   inductions F.
   * inversion* Wf.
@@ -442,9 +365,11 @@ Proof.
     - rewrite dom_concat in *. simpls. rewrite* dom_env_subst.
     - rewrite dom_concat in *. simpls. rewrite* dom_env_subst.
       rewrite <- dom_concat. eapply (typ_fv_subst); auto. rewrite* dom_concat.
+    - apply subst_type; auto.
   * inversion Wf; subst. simpl. constructor*. 
     rewrite dom_concat in *. simpls. rewrite* dom_env_subst.
     rewrite <- dom_concat. eapply typ_fv_subst; auto. rewrite* dom_concat.
+    apply subst_type; auto.
   Unshelve. exact T. exact T.
 Qed.
 
@@ -509,8 +434,6 @@ Proof. intros. eapply wf_typ_subst; eauto; inversion H0; simpl; auto.
        red. intros. rewrite in_singleton in H2. subst*.
 Qed.
 
-
-
 Lemma subtyping_subst : forall {x E F S T T'} s,
     E « x : S & F |~ T <: T' ->
     value s ->
@@ -520,10 +443,10 @@ Proof.
   introv Sub Val Typ. inductions Sub; simpl.
   * apply_fresh subtype_refinement. 
     forwards* : (wf_typ_subst_trm S s H Val). forwards* : (wf_typ_subst_trm S s H0 Val).
-    forwards* : (H1 y).
-    admit.
-    (* rewrite <- formula_env_concat in H2. *)
-    (* eapply entails_subst in H2; eauto. simpls. repeat rewrite* subst_open_var_formula.  *)
+    lets : (H1 y). rewrite <- formula_env_concat in H2.
+    inversion H as [_ [WfEnv _]]. apply wf_env_middle_inv in WfEnv as [NotinE NotinF].
+    apply (entails_typing_subst s) in H2; auto. rewrite formula_env_concat in H2.
+    repeat rewrite subst_open_var_formula; auto.
   * simpl. apply_fresh* subtype_arrow.
     forwards* : (H0 y). rewrite* binding_env_concat. repeat rewrite* subst_open_var_typ. 
 Qed.
@@ -653,8 +576,7 @@ Proof.
   introv Typ. gen s. inductions Typ; introv Red; try solve[inversion Red].
   (* IF *)
   * inversion Red; subst; simpls; eapply typing_strengthen_r; eauto;
-    (* apply entails_valid; apply valid_eq. *)
-    admit.
+    apply entails_valid; apply valid_eq.
   (* Application *)
   * inversion Red; subst.
     forwards* : (typing_abs_strong_inv Typ1).
@@ -666,7 +588,7 @@ Proof.
       forwards : (typing_subst_dependent t2 H1); auto.
       eapply typing_sub; eauto.
       rewrite empty_env_concat_r in H2 at 1.
-      forwards : (subtyping_subst t2 H2).
+      forwards* : (subtyping_subst t2 H2).
   (* let *)
   * inversion Red; subst.
     + pick_fresh y. forwards*:(H y). rewrite* (subst_intro y).

@@ -1,6 +1,5 @@
 Require Import TLC.LibLN.
 
-
 (* ********************************************************************** *)
 (* ********************************************************************** *)
 (* ********************************************************************** *)
@@ -525,10 +524,12 @@ Inductive env_wf : env -> Prop :=
     |~ E ->
     x \notin dom E ->
     typ_fv T \c dom E ->
+    type T ->
     env_wf (E« x : T)
 | formula_env_wf : forall E p,
     |~ E ->
     formula_fv p \c dom E ->
+    closed_formula p ->
     env_wf (E«p)
 where "|~ E" := (env_wf E).
 Hint Constructors env_wf.
@@ -583,7 +584,7 @@ Inductive subtype : env -> typ -> typ -> Prop :=
       E |~ {v: B | p} ->
       E |~ {v: B | q} ->
       (forall x, x \notin L ->
-        extract E \u \{p^x} |= (q ^ x))%logic ->
+        extract (E « (p^x)%logic) |= (q ^ x))%logic ->
       E |~ {v : B | p} <: {v : B | q}
 
   | subtype_arrow : forall L E T11 T12 T21 T22,
@@ -672,10 +673,22 @@ Hint Constructors typing.
     logic. Here we state all the axioms that we require for the language to be sound. The
     statements are defined so they match the statements of the properties about subtyping. *)
 
+Definition subst_set (x : var) (v : logical_value) (E : fset formula) (F: fset formula) : 
+  Prop := (forall p, p \in E -> ([x ~> v] p)%logic \in F) /\
+       (forall q, q \in F -> exists p, p \in E /\ ([x ~> v] p)%logic = q).
+
 Axiom valid_eq : forall {v}, valid (v = v).
 Axiom entails_assumption : forall E p, E \u \{p} |= p.
-Axiom entails_monotone : forall {E p} F, E |= p -> E \u F |= p.
-Axiom entails_cut : forall {E} p q, E |= p -> E \u \{p} |= q -> E |= q.
+Axiom entails_monotone : forall {E p} F,
+    E |= p ->
+    E \u F |= p.
+Axiom entails_cut : forall {E} p q,
+    E |= p ->
+    E \u \{p} |= q -> E |= q.
+Axiom entails_subst : forall {E q} x v F,
+    E |= q ->
+    subst_set x v E F ->
+    F |= [x ~> v] q.
 
 (* ********************************************************************** *)
 (** * Semantics *)
@@ -714,7 +727,6 @@ Inductive red : trm -> trm -> Prop :=
 
 where "t ---> t'" := (red t t').
 
-
 (** * Goals *)
 
 Definition preservation := forall t s T,
@@ -726,7 +738,7 @@ Definition progress := forall t T,
     empty_env |~ t : T ->
     (value t \/ exists s, t ---> s).
 
-Definition refinement_soundness := forall t B p,
+Definition refinement_soundness := forall t B p E,
     value t ->
-    empty_env |~ t : {v : B | p} ->
-    valid (p ^^ !t).
+    E |~ t : { v : B | p} ->
+    E ||= (p ^^ (! t)).
