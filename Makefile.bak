@@ -137,10 +137,10 @@ VFILES:=TLC/LibWf.v\
   TLC/LibBool.v\
   TLC/LibBag.v\
   TLC/LibAxioms.v\
+  Env.v\
   Soundness.v\
   Infrastructure.v\
-  Definitions.v\
-  Env.v
+  Definitions.v
 
 ifneq ($(filter-out archclean clean cleanall printenv,$(MAKECMDGOALS)),)
 -include $(addsuffix .d,$(VFILES))

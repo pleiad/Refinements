@@ -4,7 +4,7 @@ Require Import TLC.LibLN Definitions Infrastructure.
 Lemma entails_subst2 : forall {E p q} x v,
     |~ E ->
     x \notin dom E ->
-    closed_logical_value v ->
+    closed_logic_val v ->
     x \notin formula_fv p ->
     x \notin formula_fv q ->
     extract E \u \{p^x}%logic |= (q^x)%logic ->
@@ -337,10 +337,10 @@ Proof.
 Qed.
 
 Lemma typ_fv_subst: forall E x F X u,
-    logical_value_fv u \c dom E ->
+    logic_val_fv u \c dom E ->
     (forall T, typ_fv T \c dom (E « x : X & F) -> typ_fv ([x ~> u] T) \c dom (E & F)) /\
     (forall p, formula_fv p \c dom (E « x : X & F) -> formula_fv ([x ~> u] p) \c dom (E & F)) /\
-    (forall v, logical_value_fv v \c dom (E « x : X & F) -> logical_value_fv ([x ~> u] v) \c dom (E & F)).
+    (forall v, logic_val_fv v \c dom (E « x : X & F) -> logic_val_fv ([x ~> u] v) \c dom (E & F)).
 Proof.
   intros. apply typ_combined; cbn; intros; eauto;
   try solve [apply union_subset_inv in H2; destruct H2; apply* union_subset].
@@ -352,9 +352,9 @@ Proof.
 Qed.
 
 Lemma wf_env_subst : forall {E x F} T u,
-    closed_logical_value u ->
+    closed_logic_val u ->
     |~ (E « x : T & F) ->
-    logical_value_fv u \c dom E ->
+    logic_val_fv u \c dom E ->
     |~ [x ~> u] (E & F).
 Proof.
   introv Closed Wf Fv. rewrite subst_env_concat. lets M : (wf_env_concat_inv Wf). inversion M.
@@ -387,7 +387,7 @@ Lemma notin_subst : forall x u,
   u <> logical_fvar x ->
   (forall T, x \notin typ_fv ([x ~> u] T)) /\
   (forall p, x \notin formula_fv ([x~>u] p)) /\
-  (forall v, x \notin logical_value_fv ([x~>u] v)).
+  (forall v, x \notin logic_val_fv ([x~>u] v)).
 Proof.
   intros. apply typ_combined; intros; simpl; auto. case_var.
   + destruct u; simpl; auto. red. red. intros. rewrite in_singleton in H0. subst*. 
@@ -395,9 +395,9 @@ Proof.
 Qed.
 
 Lemma in_typ_fv_subst : forall x y u,
-   (forall T, x \in typ_fv ([y ~> u] T) -> x \in typ_fv T \/ x \in logical_value_fv u) /\
-   (forall p, x \in formula_fv ([y ~> u] p) -> x \in formula_fv p \/ x \in logical_value_fv u) /\
-   (forall v, x \in logical_value_fv ([y ~> u] v) -> x \in logical_value_fv v \/ x \in logical_value_fv u).
+   (forall T, x \in typ_fv ([y ~> u] T) -> x \in typ_fv T \/ x \in logic_val_fv u) /\
+   (forall p, x \in formula_fv ([y ~> u] p) -> x \in formula_fv p \/ x \in logic_val_fv u) /\
+   (forall v, x \in logic_val_fv ([y ~> u] v) -> x \in logic_val_fv v \/ x \in logic_val_fv u).
 Proof.
   intros. apply typ_combined; intros; simpls; auto;
   try solve [in_solve; [rewrite or_comm; rewrite <- or_assoc; left; rewrite* or_comm | 
@@ -407,8 +407,8 @@ Qed.
 
 Lemma wf_typ_subst : forall {E F x T} S u,
     E « x : S & F |~ T ->
-    closed_logical_value u ->
-    logical_value_fv u \c dom E ->
+    closed_logic_val u ->
+    logic_val_fv u \c dom E ->
     [x ~> u] (E & F) |~ [x ~> u] T.
 Proof. intros. destructs H. splits.
   * apply* subst_type. 

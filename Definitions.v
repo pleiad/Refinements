@@ -1,4 +1,7 @@
 Require Import TLC.LibLN.
+Require Import Env.
+
+Set Implicit Arguments.
 
 (* ********************************************************************** *)
 (* ********************************************************************** *)
@@ -35,14 +38,14 @@ Inductive trm : Set :=
   | trm_let : trm -> trm -> trm
   | trm_app : trm -> trm -> trm.
 
-Implicit Type t s : trm.
+Implicit Types t s : trm.
 
 (* ********************************************************************** *)
 (** ** Types *)
 
 (** *** Grammar of base types. *)
 Inductive typ_base : Set := typ_bool | typ_nat.
-Implicit Type B : typ_base.
+Implicit Types B : typ_base.
 
 
 (** *** Grammar of types *)
@@ -64,7 +67,7 @@ with formula : Set :=
   | formula_and : formula -> formula -> formula
   | formula_not : formula -> formula
   | formula_true : formula
-  | formula_eq : logical_value -> logical_value -> formula
+  | formula_eq : logic_val -> logic_val -> formula
 
 (** *** Grammar of logical values *)
 (** Note that the logic is syntactically separated from terms. We then define an operation
@@ -73,17 +76,17 @@ with formula : Set :=
     which need to be treated with care. As a simplification we treat lambdas as atomic and
     introduce them into the logic with the constructor [logical_abs_var]. *)
 
-with logical_value : Set :=
-  | logical_nat : nat -> logical_value
-  | logical_true : logical_value
-  | logical_false : logical_value
-  | logical_bvar : nat -> logical_value
-  | logical_fvar : var -> logical_value
-  | logical_abs_var : var -> logical_value.
+with logic_val : Set :=
+  | logical_nat : nat -> logic_val
+  | logical_true : logic_val
+  | logical_false : logic_val
+  | logical_bvar : nat -> logic_val
+  | logical_fvar : var -> logic_val
+  | logical_abs_var : var -> logic_val.
 
-Implicit Type v u : logical_value.
-Implicit Type p q : formula.
-Implicit Type T S U : typ.
+Implicit Types v u : logic_val.
+Implicit Types p q : formula.
+Implicit Types T S U : typ.
 
 (** We don't need to make a mutually recursive definition, but we do it for convenience. In
     order to prove propositions about types we also need to prove similar propositions
@@ -97,8 +100,8 @@ Bind Scope logical_scope with formula.
 Delimit Scope logical_scope with logic.
 
 (* Notation for formulas *)
-Bind Scope logical_value_scope with logical_value.
-Delimit Scope logical_value_scope with logic_val.
+Bind Scope logic_val_scope with logic_val.
+Delimit Scope logic_val_scope with logic_val.
 Notation " v1 = v2 " := (formula_eq v1 v2) : logical_scope.
 Notation " v1 /\ v2 " := (formula_and v1 v2) : logical_scope.
 Notation " v1 \/ v2 " := (formula_or v1 v2) : logical_scope.
@@ -160,14 +163,14 @@ Delimit Scope trm_scope with trm.
     replace bound variables with logical values. In this case we also make the assumption
     that [u] is locally closed and 0 is the only unbound index .*)
 
-Fixpoint open_typ_rec (k : nat) (u : logical_value) (T : typ) : typ :=
+Fixpoint open_typ_rec (k : nat) (u : logic_val) (T : typ) : typ :=
   match T with
   | {v :B | p} => typ_refinement B ({(S k) ~> u} p)
   | T1 --> T2 => ({k ~> u} T1) --> ({(S k) ~> u} T2)
   end
 where "{ k ~> u } T" := (open_typ_rec k u T) : typ_scope
 
-with open_formula_rec (k : nat) (u : logical_value) (p : formula) : formula :=
+with open_formula_rec (k : nat) (u : logic_val) (p : formula) : formula :=
   match p with
   | p1 \/ p2 => ({k ~> u} p1) \/ ({k ~> u} p2)
   | p1 /\ p2 => ({k ~> u} p1) /\ ({k ~> u} p2)
@@ -177,15 +180,15 @@ with open_formula_rec (k : nat) (u : logical_value) (p : formula) : formula :=
   end
 where "{ k ~> u } p" := (open_formula_rec k u p) : logical_scope
 
-with open_logical_value_rec
-    (k : nat) (u : logical_value) (v : logical_value) : logical_value :=
+with open_logic_val_rec
+    (k : nat) (u : logic_val) (v : logic_val) : logic_val :=
   match v with
   | logical_bvar i => If k = i then u else v
   | _ => v
   end
-where "{ k ~> u } v" := (open_logical_value_rec k u v) : logical_value_scope.
+where "{ k ~> u } v" := (open_logic_val_rec k u v) : logic_val_scope.
                            
-Definition open_typ (T : typ) (u : logical_value) := (open_typ_rec 0 u T).
+Definition open_typ (T : typ) (u : logic_val) := (open_typ_rec 0 u T).
 Notation "T ^ x" := (open_typ T (logical_fvar x)) : typ_scope.
 Notation "T ^^ u" := (open_typ T u) : typ_scope.
 
@@ -193,9 +196,9 @@ Definition open_formula p u:= open_formula_rec 0 u p.
 Notation "p ^ x" := (open_formula p (logical_fvar x)) : logical_scope.
 Notation "p ^^ u" := (open_formula p u) : logical_scope.
 
-Definition open_logical_value v u:= open_logical_value_rec 0 u v.
-Notation "v ^ x" := (open_logical_value v (logical_fvar x)) : logical_value_scope.
-Notation "v ^^ u" := (open_logical_value v u) : logical_value_scope.
+Definition open_logic_val v u:= open_logic_val_rec 0 u v.
+Notation "v ^ x" := (open_logic_val v (logical_fvar x)) : logic_val_scope.
+Notation "v ^^ u" := (open_logic_val v u) : logic_val_scope.
 
 (** We need to lift each term value to a logical value. We assume that types are always
     opened with term values *)
@@ -296,27 +299,27 @@ with closed_formula : formula -> Prop :=
       closed_formula formula_true
 
   | closed_formula_eq : forall v1 v2,
-      closed_logical_value v1 ->
-      closed_logical_value v2 ->
+      closed_logic_val v1 ->
+      closed_logic_val v2 ->
       closed_formula (v1 = v2)
 
-with closed_logical_value : logical_value -> Prop :=
+with closed_logic_val : logic_val -> Prop :=
   | closed_logical_nat : forall n,
-      closed_logical_value (logical_nat n)
+      closed_logic_val (logical_nat n)
 
   | closed_logical_true: 
-      closed_logical_value logical_true
+      closed_logic_val logical_true
 
   | closed_logical_false : 
-      closed_logical_value logical_false
+      closed_logic_val logical_false
 
   | closed_logical_fvar : forall x,
-      closed_logical_value (logical_fvar x)
+      closed_logic_val (logical_fvar x)
 
   | closed_logical_fun_var : forall lbl,
-      closed_logical_value (logical_abs_var lbl).
+      closed_logic_val (logical_abs_var lbl).
 
-Hint Constructors closed_logical_value closed_formula.
+Hint Constructors closed_logic_val closed_formula.
 
 (** * Typing *)
 
@@ -363,45 +366,6 @@ Inductive atom : trm -> Prop :=
       atom trm_false.
 Hint Constructors atom.
 
-(** ** Typing environments *)
-
-(** A typing environment is a list of formulas (p) and bindings for variables (x: T) *)
-Inductive env : Set :=
-| empty_env : env
-| binding_env : env -> var -> typ -> env
-| formula_env : env -> formula -> env.
-Notation "E « x : T" := (binding_env E x T)
-                          (at level 26, x at level 0, T at level 0).
-Notation "E « p" := (formula_env E p) (at level 26, p at level 0).
-
-(** The relation [binds x T E] holds when the type [T] is bound to variable [x] in the
-    environment [E] *)
-Fixpoint get x E :=
-  match E with
-  | empty_env => None
-  | E'« x':T => If x' = x then Some T else get x E'
-  | E'« p => get x E'
-  end.
-Definition binds x T E : Prop := get x E = Some T.
-
-(** The domain of an environment is the set of bound variables *)
-Fixpoint dom E :=
-  match E with
-  | empty_env => \{}
-  | E'« x:T => \{x} \u (dom E')
-  | E'« p => dom E'
-  end.
-
-(** Environment concatenation *)
-Fixpoint concat E F:=
-  match F with
-  | empty_env => E
-  | F' « x : T => (concat E F')« x : T
-  | F' « p => (concat E F')« p
-  end.
-
-Notation "E & F" := (concat E F).
-
 
 (** ** Free variables *)
 
@@ -437,14 +401,22 @@ with formula_fv (p : formula) : vars :=
   | p1 /\ p2 => formula_fv p1 \u formula_fv p2
   | ~p' => formula_fv p'
   | formula_true => \{}
-  | v1 = v2 => (logical_value_fv v1) \u (logical_value_fv v2)
+  | v1 = v2 => (logic_val_fv v1) \u (logic_val_fv v2)
   end%logic 
 
-with logical_value_fv (v : logical_value) : vars :=
+with logic_val_fv (v : logic_val) : vars :=
   match v with
   | logical_fvar x => \{x}
   | _ => \{}
   end.
+
+(** ** Environements *)
+
+Definition ctx := env typ formula.
+Bind Scope env_scope with ctx.
+Arguments push_binding typ%type formula%type E%env x T%typ.
+Arguments push_formula typ%type formula%type E%env p%logic.
+
 
 (** ** Substitution *)
 
@@ -478,14 +450,14 @@ Fixpoint trm_subst (x : var) (s : trm) (t : trm) {struct t} : trm :=
 where "[ x ~> s ] t" := (trm_subst x s t) : trm_scope.
 
 (** We also define substitution of free variables by logical values *)
-Fixpoint typ_subst (x : var) (v : logical_value) (T : typ) : typ:=
+Fixpoint typ_subst (x : var) (v : logic_val) (T : typ) : typ:=
   match T with
   | {v : B | p} => {v : B | [x ~> v] p}%logic
   | T1 --> T2 => ([x ~> v] T1) --> ([x ~> v] T2)
   end
 where "[ x ~> v ] T" := (typ_subst x v T) : typ_scope
   
-with formula_subst (x : var) (v : logical_value) (p : formula) : formula :=
+with formula_subst (x : var) (v : logic_val) (p : formula) : formula :=
   match p with
   | p1 \/ p2 => ([x ~> v] p1) \/ ([x ~> v] p2)
   | p1 /\ p2 => ([x ~> v] p1) /\ ([x ~> v] p2)
@@ -495,30 +467,29 @@ with formula_subst (x : var) (v : logical_value) (p : formula) : formula :=
   end
 where "[ x ~> v ] p" := (formula_subst x v p) : logical_scope
 
-with logical_value_subst
-         (x : var) (v : logical_value) (u : logical_value) :=
+with logic_val_subst
+         (x : var) (v : logic_val) (u : logic_val) :=
   match u with
   | logical_fvar x' => If x' = x then v else logical_fvar x'
   | _ => u
   end
-where "[ x ~> v ] u" := (logical_value_subst x v u) : logical_value_scope.
+where "[ x ~> v ] u" := (logic_val_subst x v u) : logic_val_scope.
 
 (** We also extend the definition to type environements *)
-Fixpoint env_subst (x : var) (v : logical_value) (E : env) : env :=
+Fixpoint env_subst (x : var) (v : logic_val) (E : ctx) : ctx :=
   match E with
   | empty_env => empty_env
-  | E' « y : T => ([x ~> v] E') « y : ([x ~> v] T)
-  | E' « p => ([x ~> v] E') « ([x ~> v] p)
+  | E' « y : T => ([x ~> v] E')%env « y : ([x ~> v] T)%typ
+  | E' « p => ([x ~> v] E')%env « ([x ~> v] p)%logic
   end
 where "[ x ~> v ] E" := (env_subst x v E) : env_scope.
-Delimit Scope env_scope with env. 
 
 (** ** Well-formedness *)
 
 (** A type environment is well-formed if all variables are defined before use and no duplications
     exist *)
 Reserved Notation "  |~ T" (at level 69, T at level 0). 
-Inductive env_wf : env -> Prop :=
+Inductive env_wf : ctx -> Prop :=
 | empty_env_wf : env_wf empty_env
 | binding_env_wf : forall E x T,
     |~ E ->
@@ -549,13 +520,13 @@ Notation "E |~ T" := (type_wf E T) (at level 69, T at level 0).
 (*   | E'« p => Embed E' /\ p *)
 (*   end%logic. *)
 
-Fixpoint extract (E : env) : fset formula :=
+Fixpoint extract (E : ctx) : fset formula :=
   match E with
   | empty_env => \{}
-  | E'« x:{v: B | p} => extract E' \u \{(p ^ x)}
+  | E'« x:{v: B | p}%typ => extract E' \u \{(p ^ x)}%logic
   | E'« x:_ => extract E'
   | E'« p => extract E' \u \{p}
-  end%logic.
+  end.
 
 (** The definition of subtyping appeals to the notion of logical consequence or entailment in
     the logic. We assume a judgment [entails E p] which means that the environment [E]
@@ -673,7 +644,7 @@ Hint Constructors typing.
     logic. Here we state all the axioms that we require for the language to be sound. The
     statements are defined so they match the statements of the properties about subtyping. *)
 
-Definition subst_set (x : var) (v : logical_value) (E : fset formula) (F: fset formula) : 
+Definition subst_set (x : var) (v : logic_val) (E : fset formula) (F: fset formula) : 
   Prop := (forall p, p \in E -> ([x ~> v] p)%logic \in F) /\
        (forall q, q \in F -> exists p, p \in E /\ ([x ~> v] p)%logic = q).
 

@@ -9,15 +9,15 @@ Require Import TLC.LibLN Definitions.
 
 Scheme typ_mut := Induction for typ Sort Prop
 with formula_mut := Induction for formula Sort Prop
-with logical_value_mut := Induction for logical_value Sort Prop.
+with logic_val_mut := Induction for logic_val Sort Prop.
 
-(** The Scheme command doesn't generate a mutual indution hypothesis for logical_value so
+(** The Scheme command doesn't generate a mutual indution hypothesis for logic_val so
     we must combine it ourself *)
 
 Combined Scheme typ_combined_aux from typ_mut, formula_mut.
 
 Theorem typ_combined
-     : forall (P : typ -> Prop) (P0 : formula -> Prop) (P1 : logical_value -> Prop),
+     : forall (P : typ -> Prop) (P0 : formula -> Prop) (P1 : logic_val -> Prop),
        (forall B p, P0 p -> P { v : B | p}%typ) ->
        (forall T, P T -> forall S, P S -> P (T) --> S%typ) ->
        (forall p, P0 p -> forall q, P0 q -> P0 (p \/ q)%logic) ->
@@ -33,16 +33,16 @@ Theorem typ_combined
        (forall x, P1 (logical_abs_var x)) ->
        (forall T, P T) /\ (forall p : formula, P0 p) /\ (forall v, P1 v).
 Proof. intros. rewrite <- and_assoc. split. eapply typ_combined_aux; eauto.
-       apply logical_value_ind; auto. Qed.
+       apply logic_val_ind; auto. Qed.
 
 Scheme type_mut := Minimality for type Sort Prop
 with closed_formula_mut := Minimality for closed_formula Sort Prop
-with closed_logical_value_mut := Minimality for closed_logical_value Sort Prop.
+with closed_logic_val_mut := Minimality for closed_logic_val Sort Prop.
 
 Combined Scheme type_combined_aux from type_mut, closed_formula_mut.
 
 Theorem type_combined
-     : forall (P : typ -> Prop) (P0 : formula -> Prop) (P1 : logical_value -> Prop),
+     : forall (P : typ -> Prop) (P0 : formula -> Prop) (P1 : logic_val -> Prop),
        (forall L B p,
         (forall x, x \notin L -> closed_formula (p ^ x)) ->
         (forall x, x \notin L -> P0 (p ^ x)%logic) ->
@@ -62,8 +62,8 @@ Theorem type_combined
        (forall p, closed_formula p -> P0 p -> P0 (~ p)%logic) ->
        P0 formula_true ->
        (forall v1 v2,
-        closed_logical_value v1 ->
-        P1 v1 -> closed_logical_value v2 -> P1 v2 -> P0 (v1 = v2)%logic) ->
+        closed_logic_val v1 ->
+        P1 v1 -> closed_logic_val v2 -> P1 v2 -> P0 (v1 = v2)%logic) ->
        (forall n, P1 (logical_nat n)) ->
        P1 logical_true ->
        P1 logical_false ->
@@ -71,9 +71,9 @@ Theorem type_combined
        (forall x, P1 (logical_abs_var x)) ->
        (forall T, type T -> P T) /\
        (forall p, closed_formula p -> P0 p) /\
-       (forall v, closed_logical_value v -> P1 v).
+       (forall v, closed_logic_val v -> P1 v).
 Proof. intros. rewrite <- and_assoc. split. eapply type_combined_aux; eauto.
-       apply closed_logical_value_ind; auto. Qed.
+       apply closed_logic_val_ind; auto. Qed.
 
 (** * Body of abstraction and types *)
 
@@ -96,7 +96,7 @@ Ltac gather_vars :=
   let D := gather_vars_with (fun x : trm => trm_fv x) in
   let E := gather_vars_with (fun x : typ => typ_fv x) in
   let F := gather_vars_with (fun x : formula => formula_fv x) in
-  let G := gather_vars_with (fun x : logical_value => logical_value_fv x) in
+  let G := gather_vars_with (fun x : logic_val => logic_val_fv x) in
   constr:(A \u B \u C \u D \u E \u F \u G).
 
 (** The tactic [pick_fresh] pick a fresh variable in the context *)
@@ -216,8 +216,8 @@ Lemma open_var_rec_in_typ_fv : forall x E,
             typ_fv ({k ~> logical_fvar x} T) \c E) /\
     (forall p k, formula_fv p \c E ->
             formula_fv ({k ~> logical_fvar x} p) \c E) /\
-    (forall v k, logical_value_fv v \c E ->
-            logical_value_fv ({k ~> logical_fvar x} v) \c E).
+    (forall v k, logic_val_fv v \c E ->
+            logic_val_fv ({k ~> logical_fvar x} v) \c E).
 Proof.
   introv In. apply typ_combined; unfolds subset; intros; simpl in *;
              in_solve; eauto.
@@ -231,9 +231,9 @@ Lemma open_var_rec_notin_typ_fv : forall y E,
     (forall p k, y \notin formula_fv p ->
                 formula_fv ({k ~> logical_fvar y} p) \c \{y} \u E ->
                 formula_fv p \c E) /\
-    (forall v k, y \notin logical_value_fv v ->
-                logical_value_fv ({k~>logical_fvar y} v) \c \{y} \u E ->
-                logical_value_fv v \c E).
+    (forall v k, y \notin logic_val_fv v ->
+                logic_val_fv ({k~>logical_fvar y} v) \c \{y} \u E ->
+                logic_val_fv v \c E).
 Proof.
   intros. apply typ_combined; unfolds subset; intros; simpl in *;
           in_solve; eauto.
@@ -353,7 +353,7 @@ Qed.
 Lemma open_rec_type : forall v,
     (forall T, type T -> forall k, T = {k ~> v} T)%typ /\
     (forall p, closed_formula p -> forall k, p = {k ~> v} p)%logic /\
-    (forall u, closed_logical_value u -> forall k, u = {k ~> v} u)%logic_val.
+    (forall u, closed_logic_val u -> forall k, u = {k ~> v} u)%logic_val.
 Proof.
   introv. apply type_combined; intros; simpl; f_equal*.
   * pick_fresh x. eapply open_rec_type_core. unify ?j 0. auto. unify ?v (logical_fvar x).
@@ -362,24 +362,24 @@ Proof.
     unify ?v (logical_fvar x). apply* H2.
 Qed.
 
-Lemma subst_open_logical_value : forall x k (b u v : logical_value),
-    closed_logical_value v -> 
+Lemma subst_open_logic_val : forall x k (b u v : logic_val),
+    closed_logic_val v -> 
     ([x ~> v] ({k ~> u} b) = {k ~> [x ~> v]u } ([x ~> v] b))%logic_val.
 Proof. intros. destruct b; simpl; f_equal*. case_nat*. case_var*.
        destruct u; simpl; destruct* H. Qed.
 
 Open Scope logic.
-Lemma subst_open_formula : forall x p k (u v : logical_value),
-    closed_logical_value v -> 
+Lemma subst_open_formula : forall x p k (u v : logic_val),
+    closed_logic_val v -> 
     ([x ~> v] ({k ~> u} p) = {k ~> [x ~> v] u} ([x ~> v] p)).
 Proof.
   intros. unfold open_formula. generalize 0.
-  induction p; intros; simpl; f_equal; auto using subst_open_logical_value.
+  induction p; intros; simpl; f_equal; auto using subst_open_logic_val.
 Qed.
 Close Scope logic.
 
-Lemma subst_open_typ : forall x T (u v : logical_value),
-    closed_logical_value v -> 
+Lemma subst_open_typ : forall x T (u v : logic_val),
+    closed_logic_val v -> 
     ([x ~> v] (T ^^ u) = ([x ~> v] T) ^^ ([x ~> v]u))%typ.
 Proof.
   intros. unfold open_typ. generalize 0.
@@ -393,7 +393,7 @@ Proof. intros. apply* open_rec_type. Qed.
 Lemma subst_fresh_mut : forall x v,
     (forall T, x \notin (typ_fv T) -> [x ~> v] T = T)%typ /\
     (forall p, x \notin (formula_fv p) -> [x ~> v] p = p)%logic /\
-    (forall u, x \notin (logical_value_fv u) -> [x ~> v] u = u)%logic_val.
+    (forall u, x \notin (logic_val_fv u) -> [x ~> v] u = u)%logic_val.
 Proof.
   intros. apply typ_combined; intros; simpl in *; f_equal*.
   case_var*.
@@ -408,7 +408,7 @@ Proof. apply* subst_fresh_mut. Qed.
 
 
 Lemma subst_open_rec : forall x u v,
-    closed_logical_value u ->
+    closed_logic_val u ->
     (forall T k, [x ~> u] {k ~> v} T = {k ~> [x ~> u] v} ([x ~> u] T))%typ /\
     (forall p k, [x ~> u] {k ~> v} p = {k ~> [x ~> u] v} ([x ~> u] p))%logic /\
     (forall v' k, [x ~> u] {k ~> v} v' = {k ~> [x ~> u] v} ([x ~> u] v'))%logic_val.
@@ -418,21 +418,21 @@ Proof.
   * case_var*. inversion H; subst; auto.
 Qed.
 Lemma subst_open_rec_typ : forall x u v T k,
-    closed_logical_value u ->
+    closed_logic_val u ->
     [x ~> u] {k ~> v} T %typ= {k ~> [x ~> u] v} ([x ~> u] T)%typ.
 Proof. intros; apply* subst_open_rec. Qed.
 Lemma subst_open_rec_formula : forall x u v p k,
-    closed_logical_value u ->
+    closed_logic_val u ->
     [x ~> u] {k ~> v} p %logic= {k ~> [x ~> u] v} ([x ~> u] p)%logic.
 Proof. intros; apply* subst_open_rec. Qed.
 
 Lemma subst_open_typ_var : forall x y u,
-    x <> y -> closed_logical_value u ->
+    x <> y -> closed_logic_val u ->
     (forall T, [x ~>u] T ^ y = [x ~> u] (T ^ y))%typ /\
     (forall p, [x ~>u] p ^ y = [x ~> u] (p ^ y))%logic /\
     (forall v, [x ~>u] v ^ y = [x ~> u] (v ^ y))%logic_val.
 Proof.
-  intros. unfold open_typ, open_formula, open_logical_value.
+  intros. unfold open_typ, open_formula, open_logic_val.
   apply typ_combined; intros; simpl; f_equal*.
   rewrite subst_open_rec_formula; simpl; auto. case_var*.
   rewrite subst_open_rec_typ; simpl; auto. case_var*.
@@ -440,19 +440,19 @@ Proof.
   case_var*. inversion* H0.
 Qed.
 Lemma subst_open_var_typ : forall T x y u,
-    x <> y -> closed_logical_value u ->
+    x <> y -> closed_logic_val u ->
     ([x ~>u] T ^ y = [x ~> u] (T ^ y))%typ.
 Proof. intros. apply* subst_open_typ_var. Qed.
 Lemma subst_open_var_formula : forall p x y u,
-    x <> y -> closed_logical_value u ->
+    x <> y -> closed_logic_val u ->
     ([x ~>u] p ^ y)%logic = [x ~> u] (p ^ y)%logic.
 Proof. intros. apply* subst_open_typ_var. Qed.
 
 Lemma subst_type : forall x u,
-    closed_logical_value u ->
+    closed_logic_val u ->
     (forall T, type T -> type ([x ~> u] T)) /\
     (forall p, closed_formula p -> closed_formula ([x ~> u] p)) /\
-    (forall v, closed_logical_value v -> closed_logical_value ([x ~> u] v)).
+    (forall v, closed_logic_val v -> closed_logic_val ([x ~> u] v)).
 Proof.
   intros. apply type_combined; intros; simpl; auto. 
   apply_fresh type_refinement. rewrite* subst_open_var_formula.
@@ -461,7 +461,7 @@ Proof.
 Qed.
 
 Lemma subst_intro_typ : forall x T u,
-    x \notin (typ_fv T) ->  closed_logical_value u ->
+    x \notin (typ_fv T) ->  closed_logic_val u ->
     (T ^^ u)%typ = [x ~> u] (T ^ x)%typ.
 Proof.
   intros. unfold open_typ. rewrite subst_open_rec_typ; simpl; auto.
@@ -469,7 +469,7 @@ Proof.
 Qed.
 
 Lemma subst_intro_formula : forall x p u,
-    x \notin (formula_fv p) -> closed_logical_value u ->
+    x \notin (formula_fv p) -> closed_logic_val u ->
     (p ^^ u)%logic = [x ~> u] (p ^ x)%logic.
 Proof.
   intros. unfold open_formula. rewrite subst_open_rec_formula; simpl; auto.
@@ -477,44 +477,13 @@ Proof.
 Qed.
 
 
-Lemma open_type : forall T u, typ_body T -> closed_logical_value u -> type (T ^^ u).
+Lemma open_type : forall T u, typ_body T -> closed_logic_val u -> type (T ^^ u).
 Proof. intros. destruct H as [L]. pick_fresh x.
        rewrite* (@subst_intro_typ x). apply* subst_type.
 Qed.
 
 
 (** * Properties of environments *)
-
-Lemma env_concat_assoc : forall E F G, (E & F) & G = E & (F & G).
-Proof. intros. induction G; simpl; congruence. Qed.
-
-Lemma binding_env_concat : forall E F x T, E & F « x : T = (E & F) « x: T.
-Proof. auto. Qed.
-
-Lemma formula_env_concat: forall E F p, E & (F « p) = (E & F) « p.
-Proof. auto. Qed.
-
-
-Lemma empty_env_concat_r : forall E, E = E & empty_env.
-Proof. auto. Qed.
-
-Lemma empty_env_concat_l : forall E, E = empty_env & E.
-Proof. induction E; simpl; auto; try solve [rewrite* <- IHE]. Qed.
-
-Lemma empty_env_middle : forall E x T F, E « x : T & F = E & (empty_env « x : T) & F.
-Proof. intros. auto. Qed.
-
-Lemma empty_env_concat_inv_r :  forall {E F}, empty_env = E & F -> empty_env = F.
-Proof.
-  intros. gen E. induction F; intros; auto. 
-  simpl in H. inversion H. simpl in H.  inversion H.
-Qed.
-
-Lemma empty_env_concat_inv_l : forall E F, empty_env = E & F -> empty_env = E.
-Proof. 
-  intros. gen E. induction F; intros; auto. 
-  simpl in H. inversion H. simpl in H.  inversion H.
-Qed.
 
 Lemma extract_concat : forall {E F}, extract (E & F) = extract E \u extract F.
 Proof.
@@ -524,16 +493,6 @@ Proof.
     + rewrite union_assoc. reflexivity.
     + reflexivity.
   * cbn. rewrite IHF. rewrite union_assoc. reflexivity.
-Qed.
-
-
-Lemma dom_middle_formula : forall E p F, dom (E « p & F) = dom (E & F).
-Proof. induction F; intros; simpl; auto. rewrite* IHF. Qed.
-
-Lemma dom_concat : forall E F, dom (E & F) = dom E \u dom F. 
-Proof. induction F; simpl; auto.
-       rewrite* union_empty_r.
-       rewrite IHF. rewrite* union_comm_assoc.
 Qed.
 
 Lemma subst_env_concat : forall E F x u,
@@ -610,7 +569,7 @@ Proof.
 Qed.
 
 Lemma subst_set_extract : forall E x v,
-    closed_logical_value v ->
+    closed_logic_val v ->
     x \notin dom E ->
     subst_set x v (extract E) (extract [x ~> v] E).
 Proof.
@@ -623,94 +582,6 @@ Proof.
   * cbn. apply subst_set_union; auto. apply subst_set_singleton.
 Qed.
 
-(** * Properties of binds *)
-
-Lemma binds_tail : forall x T E, binds x T (E « x : T).
-Proof. intros. unfold binds. cbn. case_var*. Qed.
-
-Lemma get_push : forall x y T E,
-    get x (E « y: T) = If x = y then Some T else get x E.
-Proof. intros. case_if; simpl; case_if; auto. Qed.
-
-Lemma binds_push_inv : forall x1 x2 T1 T2 E,
-    binds x1 T1 (E « x2 : T2) ->
-    (x1 = x2 /\ T1 = T2) \/ (x1 <> x2 /\ binds x1 T1 E).
-Proof. intros. unfolds binds. rewrite get_push in H. case_if*. inversion* H. Qed.
-
-Lemma binds_concat_inv : forall x T E F,
-    binds x T (E & F) -> binds x T F \/ (x \notin dom F /\ binds x T E).
-Proof.
-  intros. induction F; simpl in *; auto. 
-  apply binds_push_inv in H. destruct H.
-  + destruct H. left. unfold binds. rewrite get_push. subst. case_if*.
-  + destruct H. apply IHF in H0. destruct H0.
-    * left. unfold binds. rewrite get_push. case_if*.
-    * right. destruct H0. auto.
-Qed.
-
-Lemma binds_push_eq_inv : forall x T S E,
-  binds x T (E « x : S) -> S = T.
-Proof.
-  intros. unfolds binds. simpls. case_var. inversion* H.
-Qed.
-
-Lemma binds_push_neq : forall x y T S E,
-    x <> y -> binds x T E -> binds x T (E « y : S).
-Proof. intros. unfold binds. simpl. case_if*. Qed.
-
-Lemma binds_push_neq_inv : forall {x T E} y S,
-  binds x T (E « y : S) -> x <> y -> binds x T E.
-Proof. introv H. inversion H; intros. case_if*. Qed.
-
-Lemma binds_concat_right : forall x T E F, binds x T F -> binds x T (E & F).
-Proof.
-  intros. induction F; auto.
-  * inversion H.
-  * apply binds_push_inv in H. destruct H.
-    + destruct H; subst. apply binds_tail.
-    + destruct H. apply IHF in H0. simpl. 
-      apply* binds_push_neq.
-Qed.
-
-
-Lemma binds_concat_left : forall x T E F,
-    binds x T E -> x \notin dom F -> binds x T (E & F).
-Proof.
-  intros. induction F; auto.
-  do_rew <- binding_env_concat (apply binds_push_neq); simpl in H0; auto.
-Qed.
-
-Lemma binds_middle : forall E x T F,
-    x \notin dom F ->
-    binds x T (E « x : T & F).
-Proof. introv Notin. apply binds_concat_left. apply binds_tail. assumption. Qed.
-
-Lemma binds_fresh_inv : forall x T E,
-  binds x T E -> x \notin dom E -> False.
-Proof.
-  intros. induction E; auto. 
-Qed.
-
-
-Lemma binds_concat_left_inv : forall x T E F,
-  binds x T (E & F) ->
-  x \notin dom F ->
-  binds x T E.
-Proof.  
-  introv H ?. lets* [? | [? ?]]: binds_concat_inv H.
-  exfalso. apply* binds_fresh_inv.
-Qed.
-
-Lemma binds_concat_left_ok : forall x T E G,
-  |~ (E & G) ->
-  binds x T E ->
-  binds x T (E & G).
-Proof.
-  introv wf H. induction G; auto.
-  + inversion wf; subst. do_rew* <- binding_env_concat (apply binds_push_neq).
-    intro_subst. apply binds_fresh_inv in H; auto.
-  + unfold binds. simpl. inversion wf. apply* IHG.
-Qed.
 
 (** * Properties of well-formedness *)
 
@@ -719,14 +590,6 @@ Qed.
 Lemma wf_env_concat_inv : forall {E F}, |~ (E & F) -> |~ E.
 Proof. introv Wf. gen E. induction F; intros; inversion Wf; auto. Qed.
 
-Lemma wf_env_middle_inv : forall {E x T F}, |~ (E « x : T & F) -> x \notin dom E /\ x \notin dom F.
-Proof.
-  intros. split.
-  * apply wf_env_concat_inv in H. inversion* H.
-  *  induction F; simpl; auto.
-    + inversion H. subst. rewrite dom_concat in H4. simpls*. 
-    + inversion H. rewrite dom_concat in H3. simpls*.
-Qed.
 
 Lemma wf_env_strengthen : forall {E F} p, |~ (E « p & F) -> |~ (E & F).
 Proof.
@@ -748,38 +611,6 @@ Hint Extern 1 (|~ (?E & ?F)) =>
   | H: |~ (?E « ?p  & ?F) |- _ => apply (wf_env_strengthen p H)
   end.
 
-
-(** ** Well formed environments and binds *)
-
-Lemma ok_middle_inv : forall E F x v,
-  |~ (E « x : v & F) -> x \notin dom E /\ x \notin dom F.
-Proof.
-  intros. induction F; inversion H; simpl; splits*.
-  forwards [? ?] : (IHF H3). simpl. apply notin_union. splits*.
-  rewrite dom_concat in H4. apply notin_union in H4. destructs H4.
-  simpls. apply notin_union in H4. destructs H4. apply* notin_singleton_swap.
-Qed.
-
-Lemma binds_middle_neq_inv : forall {x x' T S E F},
-    x <> x' ->
-    binds x T (E « x' : S & F) ->
-    |~ (E « x' : S & F) ->
-    binds x T ( E & F).
-Proof.
-  introv Neq Binds Wf.  induction F.
-  + simpls. apply binds_push_neq_inv in Binds; auto.
-  + unfolds binds. simpls. case_var*.
-  + unfolds binds. simpl. apply* IHF. inversion* Wf.
-Qed.
-Lemma binds_middle_eq_inv : forall {x T S E F},
-    binds x T (E « x : S & F) ->
-    |~ (E « x : S & F) ->
-    T = S.
-Proof.
-  introv H O. lets [? ?] : ok_middle_inv O.
-  forwards~ M: binds_concat_left_inv H.
-  apply binds_push_eq_inv in M; auto.
-Qed.
 
 (** ** Well formed Types *)
 
@@ -858,7 +689,7 @@ Lemma open_typ_term : forall E t T,
     value t -> E |~ t : T ->
     (forall S k, typ_fv S \c dom E -> typ_fv ({k ~> !t} S) \c dom E) /\
     (forall p k, formula_fv p \c dom E -> formula_fv ({k~>!t} p) \c dom E) /\
-    (forall v k, logical_value_fv v \c dom E -> logical_value_fv ({k~>!t} v) \c dom E).
+    (forall v k, logic_val_fv v \c dom E -> logic_val_fv ({k~>!t} v) \c dom E).
 Proof.
   introv Atom Typ. apply typ_combined; unfolds subset;
                    intros; simpl in *; in_solve; eauto.
@@ -968,7 +799,7 @@ Hint Extern 1 (type ?T) =>
   | H: (_ |~ T) |- _ => destruct H as [? _]
   end.
 
-Hint Extern 1 (closed_logical_value (!?u)) =>
+Hint Extern 1 (closed_logic_val (!?u)) =>
   match goal with
   | H : (value u) |- _ => inversion H; simpl; auto
   end.

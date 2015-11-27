@@ -5,10 +5,11 @@
 
 Set Implicit Arguments.
 Require Import LibList.
-Require Export LibTactics LibProd LibLogic LibVar LibEnv.
+(*Require Export LibTactics LibProd LibLogic LibVar LibEnv.*)
+Require Export LibTactics LibProd LibLogic LibVar.
 
 Open Scope fset_scope.
-Open Scope env_scope.
+(*Open Scope env_scope.*)
 
 
 (* ********************************************************************** *)
@@ -146,16 +147,18 @@ Tactic Notation "do_rew_all" "<-" constr(E) tactic(T) :=
   which stands for 
   [rewrite concat_assoc; eapply H; rewrite <- concat_assoc]. *)
 
+(*
 Tactic Notation "apply_ih_bind" constr(H) :=
   do_rew concat_assoc (applys H).
 
 Tactic Notation "apply_ih_bind" "*" constr(H) :=
   do_rew* concat_assoc (applys H).
+*)
 
 (** Similar as the above, except in the case where there
   is also a map function, so we need to use [concat_assoc_map_push]
   for rewriting. *)
-
+(*
 Tactic Notation "apply_ih_map_bind" constr(H) :=
   do_rew concat_assoc_map_push (applys H);
   try solve [ rewrite concat_assoc; reflexivity ].
@@ -194,6 +197,7 @@ Tactic Notation "apply_empty" "~" constr(H) :=
 Tactic Notation "apply_empty" "*" constr(H) :=
   apply_empty H; auto_star.
 
+*)
 
 (* ********************************************************************** *)
 (** * Some results on lists *)

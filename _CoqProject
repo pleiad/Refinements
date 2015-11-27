@@ -1,4 +1,5 @@
 -R . SimpleRefinements
+Env.v
 Definitions.v
 Infrastructure.v
 Soundness.v
@@ -47,6 +48,3 @@ TLC/LibTactics.v
 TLC/LibUnit.v
 TLC/LibVar.v
 TLC/LibWf.v
-
-
-
