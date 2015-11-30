@@ -43,7 +43,9 @@ Fixpoint dom E :=
 Inductive ok : env -> Prop :=
 | ok_empty : ok empty_env
 | ok_push : forall E x T,
-    ok E -> x \notin dom E -> ok (push_binding E x T).
+    ok E -> x \notin dom E -> ok (push_binding E x T)
+| ok_push_formula : forall E p,
+    ok E -> ok (push_formula E p).
 
 End Definitions.
 
@@ -188,7 +190,7 @@ Proof.
   introv Ok Binds. induction G; auto.
   + inversion Ok; subst. rewrite push_binding_concat; auto. apply binds_push_neq; auto.
     intro_subst. apply binds_fresh_inv in Binds; rewrite dom_concat in H3; auto.
-  + unfold binds. simpl. inversion Ok.
+  + unfold binds. simpl. inversion Ok. apply IHG. assumption.
 Qed.
 
 
@@ -208,6 +210,7 @@ Proof.
   introv Neq Binds Ok. induction F; inversion Ok.
   + simpls. apply binds_push_neq_inv in Binds; auto.
   + unfolds binds. simpls. case_if*. 
+  + simpl. apply binds_push_formula. auto.
 Qed.
 
 Lemma binds_middle_eq_inv : forall {x T S E F},
@@ -218,6 +221,20 @@ Proof.
   introv H O. lets [? ?] : ok_middle_inv O.
   forwards* M: binds_concat_left_inv H.
   apply binds_push_eq_inv in M; auto.
+Qed.
+
+Lemma ok_concat : forall E F, ok (E & F) -> ok E.
+Proof. introv Ok. induction F; inversion Ok; auto. Qed.
+
+Lemma binds_weaken : forall E F G x T,
+    binds x T (E & G) ->
+    ok (E & F & G) ->
+    binds x T (E & F & G).
+Proof.
+  intros. apply binds_concat_inv in H. destruct H.
+  * apply* binds_concat_right.
+  * destruct H. apply* binds_concat_left. apply* binds_concat_left_ok.
+    apply ok_concat in H0. assumption.
 Qed.
 
 End Properties.

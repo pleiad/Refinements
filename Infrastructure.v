@@ -1,4 +1,7 @@
 Require Import TLC.LibLN Definitions.
+Set Implicit Arguments.
+Implicit Types E F G : ctx.
+
 
 (* ********************************************************************** *)
 
@@ -92,7 +95,7 @@ Definition typ_body T :=
 Ltac gather_vars :=
   let A := gather_vars_with (fun x : vars => x) in
   let B := gather_vars_with (fun x : var => \{x}) in
-  let C := gather_vars_with (fun x : env => dom x) in
+  let C := gather_vars_with (fun x : ctx => dom x) in
   let D := gather_vars_with (fun x : trm => trm_fv x) in
   let E := gather_vars_with (fun x : typ => typ_fv x) in
   let F := gather_vars_with (fun x : formula => formula_fv x) in
@@ -210,30 +213,30 @@ Proof.
 Qed.
 
 (** * Properties of fv *)
-Lemma open_var_rec_in_typ_fv : forall x E,
-    x \in E ->
-    (forall T k, typ_fv T \c E ->
-            typ_fv ({k ~> logical_fvar x} T) \c E) /\
-    (forall p k, formula_fv p \c E ->
-            formula_fv ({k ~> logical_fvar x} p) \c E) /\
-    (forall v k, logic_val_fv v \c E ->
-            logic_val_fv ({k ~> logical_fvar x} v) \c E).
+Lemma open_var_rec_in_typ_fv : forall x A,
+    x \in A ->
+    (forall T k, typ_fv T \c A ->
+            typ_fv ({k ~> logical_fvar x} T) \c A) /\
+    (forall p k, formula_fv p \c A ->
+            formula_fv ({k ~> logical_fvar x} p) \c A) /\
+    (forall v k, logic_val_fv v \c A ->
+            logic_val_fv ({k ~> logical_fvar x} v) \c A).
 Proof.
   introv In. apply typ_combined; unfolds subset; intros; simpl in *;
              in_solve; eauto.
   case_if; auto. simpl in *. rewrite in_singleton in H0; subst*.
 Qed.
 
-Lemma open_var_rec_notin_typ_fv : forall y E,
+Lemma open_var_rec_notin_typ_fv : forall y A,
     (forall T k, y \notin typ_fv T ->
-                typ_fv ({k ~> logical_fvar y} T) \c \{y} \u E ->
-                typ_fv T \c E) /\
+                typ_fv ({k ~> logical_fvar y} T) \c A \u \{y} ->
+                typ_fv T \c A) /\
     (forall p k, y \notin formula_fv p ->
-                formula_fv ({k ~> logical_fvar y} p) \c \{y} \u E ->
-                formula_fv p \c E) /\
+                formula_fv ({k ~> logical_fvar y} p) \c A \u \{y} ->
+                formula_fv p \c A) /\
     (forall v k, y \notin logic_val_fv v ->
-                logic_val_fv ({k~>logical_fvar y} v) \c \{y} \u E ->
-                logic_val_fv v \c E).
+                logic_val_fv ({k~>logical_fvar y} v) \c A \u \{y} ->
+                logic_val_fv v \c A).
 Proof.
   intros. apply typ_combined; unfolds subset; intros; simpl in *;
           in_solve; eauto.
@@ -331,7 +334,7 @@ Lemma open_term : forall t s, trm_body t -> term s -> term (t ^^ s).
 Proof.
   intros t s H H0.
   destruct H as [L]. pick_fresh x.
-  rewrite* (subst_intro x).
+  rewrite* (@subst_intro x).
   apply* subst_term.
 Qed.
 
@@ -498,7 +501,7 @@ Qed.
 Lemma subst_env_concat : forall E F x u,
     [x~>u] (E & F) = [x~>u] E & [x~>u] F.
 Proof. intros. induction F; simpl; auto; rewrite* IHF. Qed.
-Lemma binds_in_dom : forall {x E} T, binds x T E -> x \in (dom E).
+Lemma binds_in_dom : forall x E T, binds x T E -> x \in (dom E).
 Proof.
   intros. induction E.
   * inversion H.
@@ -531,7 +534,7 @@ end.
 (** * Properties of substitution of sets *)
 
 (* Substitution is well defined *)
-Lemma subst_set_unique : forall x v E F G, subst_set x v E F -> subst_set x v E G -> F = G.
+Lemma subst_set_unique : forall x v A B C, subst_set x v A B -> subst_set x v A C -> B = C.
 Proof.
   introv Subst1 Subst2. unfolds subst_set. apply fset_extens.
   * intros_all. destruct Subst1 as [_ Subst1]. apply Subst1 in H. destruct H as [p [In Eq]].
@@ -553,10 +556,10 @@ Proof.
   unfold subst_set. intros. split; introv In; rewrite in_empty in In; exfalso; assumption.
 Qed.
 
-Lemma subst_set_union : forall x v E F G H,
-    subst_set x v E G ->
-    subst_set x v F H ->
-    subst_set x v (E \u F) (G \u H).
+Lemma subst_set_union : forall x v A B C D,
+    subst_set x v A C ->
+    subst_set x v B D ->
+    subst_set x v (A \u B) (C \u D).
 Proof.
   introv Subst1 Subst2.
   unfold subst_set. split.
@@ -587,7 +590,18 @@ Qed.
 
 (** ** Well formed environments *)
 
-Lemma wf_env_concat_inv : forall {E F}, |~ (E & F) -> |~ E.
+Lemma wf_ok : forall {E}, |~ E -> ok E.
+Proof. introv Wf. induction E; inversion Wf; constructor; auto. Qed.
+
+Hint Extern 1 (ok ?E) =>
+match goal with  H : |~ ?F |- _ => match F with context[E] => apply wf_ok end end.
+
+Lemma wf_middle_inv : forall E x T F,
+    |~ (E « x : T & F) ->
+    x \notin dom E /\ x \notin dom F.
+Proof. introv Wf. eapply ok_middle_inv. apply wf_ok. eassumption. Qed.
+
+Lemma wf_concat_inv : forall {E F}, |~ (E & F) -> |~ E.
 Proof. introv Wf. gen E. induction F; intros; inversion Wf; auto. Qed.
 
 
@@ -602,7 +616,7 @@ Hint Extern 1 (|~ ?E) =>
   match goal with
   | H: |~ (?F « ?p) |- _ => match F with context[E] => inversion H end
   | H: |~ (?F « _ : _ ) |- _ => match F with context[E] => inversion H end
-  | H: |~ (?F & ?G) |- _ => match F with context[E] => apply wf_env_concat_inv in H end
+  | H: |~ (?F & ?G) |- _ => match F with context[E] => apply wf_concat_inv in H end
   | H: |~ (?F « ?p  & ?G) |- _ => match F with context[E] => apply (wf_env_strengthen H) end
   end.
 
@@ -622,20 +636,20 @@ Qed.
  
 Lemma type_wf_strengthen_r : forall {E T} p, E « p |~ T -> E |~ T.
 Proof.
-  intros. rewrite empty_env_concat_r with E.
-  rewrite empty_env_concat_r with (E « p) in H.
-  eapply type_wf_strengthen; eauto.
+  intros. rewrite (empty_concat_r E).
+  rewrite (empty_concat_r (E « p)) in H.
+  apply (type_wf_strengthen p); assumption.
 Qed.
 
     
 (** * Properties of entailment *)
 
-Lemma entails_valid : forall E p, valid p -> E |= p.
+Lemma entails_valid : forall A p, valid p -> A |= p.
 Proof.
-   introv Valid. apply (entails_monotone E) in Valid. rewrite union_empty_l in Valid. assumption.
+   introv Valid. apply (entails_monotone A) in Valid. rewrite union_empty_l in Valid. assumption.
 Qed.
 
-Lemma entails_trans : forall {E p1 p3} p2, E \u \{p1} |= p2 -> E \u \{p2} |= p3 -> E \u \{p1} |= p3.
+Lemma entails_trans : forall {A p1 p3} p2, A \u \{p1} |= p2 -> A \u \{p2} |= p3 -> A \u \{p1} |= p3.
 Proof.
   introv Ent1 Ent2.
   apply (entails_monotone \{p1}) in Ent2.
@@ -643,8 +657,8 @@ Proof.
   rewrite union_assoc in Ent2. apply entails_cut in Ent2; assumption.
 Qed.
 
-Lemma entails_eq : forall {E v}, E |= (v = v).  
-Proof. intros. rewrite <- (union_empty_l E). apply (entails_monotone E). apply valid_eq. Qed.
+Lemma entails_eq : forall {A v}, A |= (v = v).  
+Proof. intros. rewrite <- (union_empty_l A). apply (entails_monotone A). apply valid_eq. Qed.
  
 (** * Typing Judgment *)
 

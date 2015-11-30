@@ -1,5 +1,5 @@
 Require Import TLC.LibLN.
-Require Import Env.
+Require Export Env.
 
 Set Implicit Arguments.
 
@@ -45,7 +45,6 @@ Implicit Types t s : trm.
 
 (** *** Grammar of base types. *)
 Inductive typ_base : Set := typ_bool | typ_nat.
-Implicit Types B : typ_base.
 
 
 (** *** Grammar of types *)
@@ -413,10 +412,9 @@ with logic_val_fv (v : logic_val) : vars :=
 (** ** Environements *)
 
 Definition ctx := env typ formula.
+Implicit Types E F : ctx.
 Bind Scope env_scope with ctx.
-Arguments push_binding typ%type formula%type E%env x T%typ.
-Arguments push_formula typ%type formula%type E%env p%logic.
-
+Arguments binds typ%type formula%type x T%typ E%env.
 
 (** ** Substitution *)
 
@@ -550,7 +548,7 @@ Definition valid p := \{} |= p.
     is a logical consequence of [p] in the environment [E]. *)
 
 Reserved Notation "E |~ T1 <: T2" (at level 69, T1 at level 0, T2 at level 0).
-Inductive subtype : env -> typ -> typ -> Prop :=
+Inductive subtype : ctx -> typ -> typ -> Prop :=
   | subtype_refinement : forall L E B p q,
       E |~ {v: B | p} ->
       E |~ {v: B | q} ->
@@ -579,7 +577,7 @@ where "E |~ T1 <: T2" := (subtype E T1 T2).
 *)
 
 Reserved Notation "E |~ t : T" (at level 69, t at level 0, T at level 0) .
-Inductive typing : env -> trm -> typ -> Prop :=
+Inductive typing : ctx -> trm -> typ -> Prop :=
   | typing_nat : forall E n,
     |~ E ->
     E |~ (trm_nat n) : {v : typ_nat | (logical_bvar 0) = logical_nat n}%logic
@@ -612,8 +610,8 @@ Inductive typing : env -> trm -> typ -> Prop :=
   | typing_if : forall E p b t1 t2 T,
       value b ->
       E |~ b : {v : typ_bool | p} ->
-      E « (!b = logical_true) |~ t1 : T ->
-      E « (!b = logical_false) |~ t2 : T ->
+      E « (!b = logical_true)%logic |~ t1 : T ->
+      E « (!b = logical_false)%logic |~ t2 : T ->
       E |~ (trm_if b t1 t2) : T
 
   | typing_app : forall E T11 T12 t1 t2,
@@ -649,17 +647,17 @@ Definition subst_set (x : var) (v : logic_val) (E : fset formula) (F: fset formu
        (forall q, q \in F -> exists p, p \in E /\ ([x ~> v] p)%logic = q).
 
 Axiom valid_eq : forall {v}, valid (v = v).
-Axiom entails_assumption : forall E p, E \u \{p} |= p.
-Axiom entails_monotone : forall {E p} F,
-    E |= p ->
-    E \u F |= p.
-Axiom entails_cut : forall {E} p q,
-    E |= p ->
-    E \u \{p} |= q -> E |= q.
-Axiom entails_subst : forall {E q} x v F,
-    E |= q ->
-    subst_set x v E F ->
-    F |= [x ~> v] q.
+Axiom entails_assumption : forall A p, A \u \{p} |= p.
+Axiom entails_monotone : forall {A p} B,
+    A |= p ->
+    A \u B |= p.
+Axiom entails_cut : forall {A} p q,
+    A |= p ->
+    A \u \{p} |= q -> A |= q.
+Axiom entails_subst : forall {A q} x v B,
+    A |= q ->
+    subst_set x v A B ->
+    B |= [x ~> v] q.
 
 (* ********************************************************************** *)
 (** * Semantics *)
