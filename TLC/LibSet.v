@@ -201,7 +201,7 @@ Lemma finite_empty : forall A,
   finite (\{} : set A).
 Proof using.
   intros. apply finite_prove_exists. unf.
-  exists (@nil A). introv M. inverts M.
+  exists (@nil A0). introv M. inverts M.
 Qed.
 
 Lemma finite_singleton : forall A (a : A),

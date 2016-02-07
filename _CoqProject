@@ -19,7 +19,6 @@ TLC/LibFix.v
 TLC/LibFset.v
 TLC/LibFunc.v
 TLC/LibGraph.v
-TLC/LibHeap.v
 TLC/LibInt.v
 TLC/LibListSorted.v
 TLC/LibList.v
